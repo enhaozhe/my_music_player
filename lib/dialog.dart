@@ -8,20 +8,20 @@ bool flag = false;
 class Dialogs {
   static Future<DialogOptions> saveCancelDialog(BuildContext context, Song song) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    final ControllerTitle = TextEditingController(text: song.title);
-    final ControllerArtist = TextEditingController(text: song.artist);
-    final ControllerAlbum = TextEditingController(text: song.album);
+    final controllerTitle = TextEditingController(text: song.title);
+    final controllerArtist = TextEditingController(text: song.artist);
+    final controllerAlbum = TextEditingController(text: song.album);
 
     Widget titleText = new TextField(
-      controller: ControllerTitle,
+      controller: controllerTitle,
     );
 
     Widget artistText = new TextField(
-      controller: ControllerArtist,
+      controller: controllerArtist,
     );
 
     Widget albumText = new TextField(
-      controller: ControllerAlbum,
+      controller: controllerAlbum,
     );
     final action = await showDialog(
             context: context,
@@ -55,12 +55,12 @@ class Dialogs {
                     child: Text("Save", style: TextStyle(color: Colors.black),),
                     onPressed: () {
                       flag = true;
-                      prefs.setString("songTitle", ControllerTitle.text);
-                      prefs.setString("songArtist", ControllerArtist.text);
-                      prefs.setString("songAlbum", ControllerAlbum.text);
-                      print(ControllerTitle.text);
-                      print(ControllerArtist.text);
-                      print(ControllerAlbum.text);
+                      prefs.setString("songTitle", controllerTitle.text);
+                      prefs.setString("songArtist", controllerArtist.text);
+                      prefs.setString("songAlbum", controllerAlbum.text);
+                      print(controllerTitle.text);
+                      print(controllerArtist.text);
+                      print(controllerAlbum.text);
                       Navigator.of(context).pop(DialogOptions.Save);
                       print("Save is pressed");
                       },

@@ -1,6 +1,3 @@
-import 'dart:io';
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flute_music_player/flute_music_player.dart';
 import 'package:sqflite/sqflite.dart';
@@ -23,8 +20,12 @@ class _SongListState extends State<SongList> {
   final dbHelper = DatabaseHelper.instance;
   List<Song> _songs = new List<Song>();
   Song _current = new Song(0, "  ", "  ", "  ", 0, 0, "  ", "  ");
+
   MusicFinder audioPlayer;
-  var _playerState = PlayerState.paused;
+  Duration duration;
+  Duration position;
+
+  var _playerState = PlayerState.stopped;
   IconData _icon = Icons.play_circle_outline;
 
   static const List<Color> _colors = [
@@ -35,6 +36,29 @@ class _SongListState extends State<SongList> {
     Colors.deepPurple,
     Colors.green
   ];
+
+  get durationText {
+    if(duration == null){
+      return "";
+    }
+    int minute = duration.inMinutes;
+    int seconds = duration.inSeconds % 60;
+    if(seconds >= 10) {
+      return minute.toString() + ":" + seconds.toString();
+    }
+    return minute.toString() + ":0" + seconds.toString();
+  }
+  get positionText {
+    if(position == null){
+      return "";
+    }
+    int minute = position.inMinutes;
+    int seconds = position.inSeconds % 60;
+    if(seconds >= 10) {
+      return minute.toString() + ":" + seconds.toString();
+    }
+    return minute.toString() + ":0" + seconds.toString();  }
+
 
   @override
   void initState() {
@@ -78,18 +102,42 @@ class _SongListState extends State<SongList> {
     print(await db.query(DatabaseHelper.table));
   }
 
+  void initPlayerHandler(){
+    audioPlayer.setDurationHandler((d) => setState(() {
+      duration = d;
+    }));
+
+    audioPlayer.setPositionHandler((p) => setState(() {
+      position = p;
+    }));
+
+    audioPlayer.setCompletionHandler(() {
+      onComplete();
+      setState(() {
+        position = duration;
+      });
+    });
+
+    audioPlayer.setErrorHandler((msg) {
+      setState(() {
+        _playerState = PlayerState.stopped;
+        duration = new Duration(seconds: 0);
+        position = new Duration(seconds: 0);
+      });
+    });
+  }
+
   void initPlayer() async {
+    audioPlayer = new MusicFinder();
+    initPlayerHandler();
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var res = await dbHelper.queryAllRows();
     List<Song> list =
     res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
     setState(() {
       for(int i = 0; i < list.length; i++){
-
         _songs.add(list[i]);
       }
-      audioPlayer = new MusicFinder();
-      //Todo: store to sharedPereference
       int idx = prefs.getInt("song");
       print(idx);
       if(idx != null && _songs[idx] != null){
@@ -98,6 +146,12 @@ class _SongListState extends State<SongList> {
       }
     });
     print(await dbHelper.queryAllRows());
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    audioPlayer.stop();
   }
 
   void _query() async {
@@ -148,6 +202,7 @@ class _SongListState extends State<SongList> {
 
   void onComplete() {
     setState(() => _playerState = PlayerState.stopped);
+    playNext();
   }
 
   // add a isLocal parameter to play a local file
@@ -160,12 +215,11 @@ class _SongListState extends State<SongList> {
     print(_playerState);
     print(s.uri);
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    //duration = XXX(secons) XXX(ms)
-    if(_current != null && _current != s){
-      stop();
-      audioPlayer.play(s.uri);
+    //When switch songs
+    if(_current != s){
       setState(() {
-        _playerState = PlayerState.playing;
+        stop();
+        playLocal(s.uri);
         _icon = Icons.pause_circle_outline;
         _current = s;
         //store the index of songs.
@@ -178,7 +232,6 @@ class _SongListState extends State<SongList> {
       print("ready to pause");
       pause();
       setState(() {
-        _playerState = PlayerState.paused;
         _icon = Icons.play_circle_outline;
         _current = s;
         //store the index of songs.
@@ -186,9 +239,8 @@ class _SongListState extends State<SongList> {
       });
     }else{
       print("ready to play");
-      audioPlayer.play(s.uri);
+      playLocal(s.uri);
       setState(() {
-        _playerState = PlayerState.playing;
         _icon = Icons.pause_circle_outline;
         _current = s;
         //store the index of songs.
@@ -204,18 +256,24 @@ class _SongListState extends State<SongList> {
 
   stop() async {
     final result = await audioPlayer.stop();
-    //if (result == 1) setState(() => _playerState = PlayerState.stopped);
+    if (result == 1) {
+      setState(() {
+        _playerState = PlayerState.stopped;
+        position = new Duration(seconds: 0);
+      });
+    }
   }
 
   playNext(){
     print("next");
-    stop();
     int n = _songs.indexOf(_current);
     print(n);
     Song next = _songs[(n+1) % _songs.length];
     setState(() {
       _current = next;
+      _icon = Icons.pause_circle_outline;
       audioPlayer = new MusicFinder();
+      initPlayerHandler();
       _playerState = PlayerState.playing;
     });
     audioPlayer.play(_current.uri);
@@ -230,6 +288,7 @@ class _SongListState extends State<SongList> {
         itemBuilder: (BuildContext context, int index)
       {
         return new ListTile(
+          //Todo: add delete when long pressed.\
           onTap: () => playPause(_songs[index]),
           leading: GestureDetector(
             child: new CircleAvatar(
@@ -259,7 +318,6 @@ class _SongListState extends State<SongList> {
       );
     }
 
-
     final listView = Container(
         child: new Stack(
       alignment: Alignment.bottomCenter,
@@ -286,24 +344,36 @@ class _SongListState extends State<SongList> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
                     Container(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          activeTrackColor: Colors.red,
-                          inactiveTrackColor: Colors.black,
-                          trackHeight: 2.0,
-                          thumbColor: Colors.yellow,
-                          showValueIndicator: ShowValueIndicator.always,
-                          thumbShape:
-                              RoundSliderThumbShape(enabledThumbRadius: 8.0),
-                          overlayColor: Colors.purple.withAlpha(32),
-                          overlayShape:
-                              RoundSliderOverlayShape(overlayRadius: 8.0),
-                        ),
-                        child: Slider(
-                            //Todo: make the change after drag is done.
-                            value: _value,
-                            //onChangeEnd: onChangeEnd,
-                            onChanged: onChanged),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Text(positionText, style: TextStyle(fontSize: 12.0),),
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: Colors.red,
+                                inactiveTrackColor: Colors.black,
+                                trackHeight: 2.0,
+                                thumbColor: Colors.yellow,
+                                showValueIndicator: ShowValueIndicator.always,
+                                thumbShape:
+                                RoundSliderThumbShape(enabledThumbRadius: 8.0),
+                                overlayColor: Colors.purple.withAlpha(32),
+                                overlayShape:
+                                RoundSliderOverlayShape(overlayRadius: 8.0),
+                              ),
+                              child: Slider(
+                                //Todo: make the change after drag is done.
+                                  min: 0.0,
+                                  max: _current.duration.toDouble()+1000,
+                                  value: position?.inMilliseconds?.toDouble() ?? 0,
+                                  onChanged: (double value) =>
+                                      audioPlayer.seek((value / 1000).roundToDouble(),),
+                              ),
+                            ),
+                          ),
+                          Text(durationText, style: TextStyle(fontSize: 12.0),),
+                        ],
                       ),
                     ),
                     Row(
