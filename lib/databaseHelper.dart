@@ -10,13 +10,13 @@ class DatabaseHelper {
 
   static final table = 'songs_table';
 
-  static final columnId = '_id';
+  static final columnId = 'id';
   static final columnTitle = 'title';
   static final columnArtist = 'artist';
   static final columnAlbum = 'album';
-  static final columnAlbumid = 'albumid';
+  static final columnAlbumid = 'albumId';
   static final columnDuration = 'duration';
-  static final columnUrl = 'url';
+  static final columnUrl = 'uri';
   static final columnAlbumArt = 'albumArt';
 
 // make this a singleton class

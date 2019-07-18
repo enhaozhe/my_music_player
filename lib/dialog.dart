@@ -58,6 +58,7 @@ class Dialogs {
                       prefs.setString("songTitle", controllerTitle.text);
                       prefs.setString("songArtist", controllerArtist.text);
                       prefs.setString("songAlbum", controllerAlbum.text);
+                      prefs.setInt("songID", song.id);
                       print(controllerTitle.text);
                       print(controllerArtist.text);
                       print(controllerAlbum.text);
