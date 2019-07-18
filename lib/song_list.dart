@@ -35,13 +35,13 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
 
   var _playerState = PlayerState.stopped;
   IconData _icon = Icons.play_circle_outline;
-  IconData _iconDelete = Icons.more_vert;
   IconData _iconMenuBack = Icons.menu;
   IconData _iconShareDelete = Icons.share;
   String _title = "My Music Player";
   int _deleteCount = 0;
   List<Song> _deleteList;
   bool _deleteMode = false;
+  List<bool> checkedList;
 
   static const List<Color> _colors = [
     Colors.red,
@@ -165,11 +165,11 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
       print("stored index = " + idx.toString());
       if (idx != null && _songs[idx] != null) {
         _current = _songs[idx];
-        print("current url should be : " + _songs[idx].uri.toString());
-        print("current url = " + _current.uri.toString());
+        duration = new Duration(milliseconds: _current.duration);
+        position = new Duration(milliseconds: prefs.getInt("position"));
       }
+      checkedList = new List<bool>();
     });
-    print(prefs.getString("test"));
     print(await dbHelper.queryAllRows());
   }
 
@@ -193,6 +193,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
   void storeSharedData() async{
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setInt("song", _songs.indexOf(_current));
+    prefs.setInt("position", position.inMilliseconds);
   }
 
   void _query() async {
@@ -219,9 +220,21 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
 
   void _delete() async {
     // Assuming that the number of rows is the id for the last row.
-    final id = await dbHelper.queryRowCount();
-    final rowsDeleted = await dbHelper.delete(id);
-    print('deleted $rowsDeleted row(s): row $id');
+    int rowsDeleted;
+    //Todo: Have trouble with deleting last song. Add Toast after deletion
+    for(Song s in _deleteList){
+      rowsDeleted = await dbHelper.delete(s.id);
+      setState(() {
+        _songs.remove(s);
+        if(!_songs.contains(_current)){
+          _current = new Song(
+              0, "  ", "  ", "  ", 0, 0, "  ", "  ");
+          duration = new Duration(seconds: 0);
+          position = new Duration(seconds: 0);
+        }
+      });
+    }
+    print('deleted $rowsDeleted row(s)');
   }
 
   //load all the songs from local
@@ -318,10 +331,10 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     setState(() {
       _deleteMode = true;
       _deleteList = new List<Song>();
-      _iconDelete = Icons.check_box_outline_blank;
       _iconMenuBack = Icons.arrow_back;
       _iconShareDelete = Icons.delete;
       _title = _deleteCount.toString() + " Selected";
+      checkedList = new List<bool>.filled(_songs.length, false);
     });
   }
 
@@ -329,7 +342,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     setState(() {
       _deleteMode = false;
       _deleteList.clear();
-      _iconDelete = Icons.more_vert;
       _iconMenuBack = Icons.menu;
       _iconShareDelete = Icons.share;
       _title = "My Music Player";
@@ -337,28 +349,95 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     });
   }
 
-  void deleteAction(int index) {
-    if (_iconDelete == Icons.check_box_outline_blank) {
-      setState(() {
-        _deleteCount++;
-        _title = _deleteCount.toString() + " Selected";
-        _iconDelete = Icons.check_box;
-        _deleteList.add(_songs[index]);
-      });
+  void shareOrDelete(){
+    if (_iconShareDelete == Icons.share) {
+      print("share is pressed");
     } else {
-      setState(() {
-        _deleteCount--;
-        _title = _deleteCount.toString() + " Selected";
-        _iconDelete = Icons.check_box_outline_blank;
-        _deleteList.remove(_songs[index]);
-      });
+      showDialog(
+        context: context,
+        builder: (BuildContext context){
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10.0),
+            ),
+            title: Center(child: Text("Remove Following Songs?", style: TextStyle(fontSize: 16.0),)),
+            content: Container(
+              height: 200.0,
+              child: buildDeleteList(),
+            ),
+            actions: <Widget>[
+              FlatButton(
+                child: Text("No"),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              RaisedButton(
+                child: Text("Yes", style: TextStyle(color: Colors.white),),
+                onPressed: () {
+                  _delete();
+                  Navigator.of(context).pop();
+                  quitDeleteMode();
+                  },
+              )
+            ],
+          );
+        },
+      );
+      print("delete is pressed");
     }
+  }
+
+  void checkBoxFunc(int index, bool value){
+    setState(() {
+      checkedList[index] = value;
+      _deleteCount = value ? _deleteCount+1 : _deleteCount-1;
+      _title = _deleteCount.toString() + " Selected";
+      if(value){
+        _deleteList.add(_songs[index]);
+      }else{
+        _deleteList.remove(_songs[index]);
+      }
+      print(_deleteList);
+    });
   }
 
   //Todo: Make selected song bigger
   @override
   Widget build(BuildContext context) {
+    Widget moreOrDeleteButton(int index){
+      if(_deleteMode){
+        return Checkbox(
+          value: checkedList[index],
+          onChanged: (bool value) {
+            setState(() {
+              print("is checked : " + value.toString());
+              checkBoxFunc(index, value);
+            });
+          },
+        );
+      }else{
+        return IconButton(
+          icon: new Icon(Icons.more_vert),
+          onPressed: () async {
+              SharedPreferences prefs =
+              await SharedPreferences.getInstance();
+              final update =
+              await Dialogs.saveCancelDialog(context, _songs[index]);
+              if (update == DialogOptions.Save) {
+                setState(() {
+                  _songs[index].title = prefs.getString("songTitle");
+                  _songs[index].artist =
+                      prefs.getString("songArtist");
+                  _songs[index].album = prefs.getString("songAlbum");
+                  _update(_songs[index]);
+                });
+              }
+          },
+        );
+      }
+    }
+
     print("if in delete mode : " + _deleteMode.toString());
+    print(checkedList[0].toString());
     Widget _buildSongList() {
       return ListView.builder(
         itemCount: _songs.length,
@@ -366,14 +445,20 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
           return new Column(
             children: <Widget>[
               GestureDetector(
-                //Todo: check enter or quit delete mode
                 onLongPress: () =>
                 (_deleteMode)
                     ? quitDeleteMode()
                     : deleteMode(),
                 child: new ListTile(
                   //check icon to see if in delete mode.
-                  onTap: () => (!_deleteMode) ? playPause(_songs[index]) : deleteAction(index),
+                  onTap: () { if(!_deleteMode) {
+                    playPause(_songs[index]);
+                    }else{
+                    setState(() {
+                      checkBoxFunc(index, !checkedList[index]);
+                    });
+                  }
+          },
                   leading: GestureDetector(
                     child: new CircleAvatar(
                       backgroundColor: _colors[index % _colors.length],
@@ -389,28 +474,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
                     _songs[index].artist,
                     style: TextStyle(color: Colors.grey),
                   ),
-                  trailing: IconButton(
-                    icon: new Icon(_iconDelete),
-                    onPressed: () async {
-                      if (_iconDelete == Icons.more_vert) {
-                        SharedPreferences prefs =
-                        await SharedPreferences.getInstance();
-                        final update =
-                        await Dialogs.saveCancelDialog(context, _songs[index]);
-                        if (update == DialogOptions.Save) {
-                          setState(() {
-                            _songs[index].title = prefs.getString("songTitle");
-                            _songs[index].artist =
-                                prefs.getString("songArtist");
-                            _songs[index].album = prefs.getString("songAlbum");
-                            _update(_songs[index]);
-                          });
-                        }
-                      } else {
-                        deleteAction(index);
-                      }
-                    },
-                  ),
+                  trailing: moreOrDeleteButton(index),
                 ),
               ),
               new Divider(
@@ -472,7 +536,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
                                     RoundSliderOverlayShape(overlayRadius: 8.0),
                                   ),
                                   child: Slider(
-                                    //Todo: make the change after drag is done.
                                     min: 0.0,
                                     max: _current.duration.toDouble() + 1000,
                                     value:
@@ -570,14 +633,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
       actions: <Widget>[
         IconButton(
           icon: Icon(_iconShareDelete),
-          onPressed: () {
-            if (_iconShareDelete == Icons.share) {
-              print("share is pressed");
-            } else {
-              //Todo: brings up a dialog for confirmation of deletion
-              print("delete is pressed");
-            }
-          },
+          onPressed: () => shareOrDelete(),
         ),
       ],
     );
@@ -587,5 +643,18 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
       appBar: myAppBar,
       body: listView,
     );
+  }
+
+  Widget buildDeleteList(){
+    return ListView.builder(
+        itemCount: _deleteCount,
+        itemBuilder: (BuildContext context, int index){
+          return Column(
+            children: <Widget>[
+              Text(_deleteList[index].title),
+              Divider(height: 1.0, color: Colors.grey[500],)
+            ],
+          );
+    });
   }
 }
