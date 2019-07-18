@@ -21,13 +21,13 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
   List<Song> _songs;
   Song _current = new Song(
       0,
-      "  ",
-      "  ",
-      "  ",
+      " ",
+      " ",
+      " ",
       0,
       0,
-      "  ",
-      "  ");
+      " ",
+      " ");
 
   MusicFinder audioPlayer;
   Duration duration;
@@ -42,6 +42,8 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
   List<Song> _deleteList;
   bool _deleteMode = false;
   List<bool> checkedList;
+
+  final key = new GlobalKey<ScaffoldState>();
 
   static const List<Color> _colors = [
     Colors.red,
@@ -163,10 +165,13 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
       print("songsList size = " + _songs.length.toString());
       int idx = prefs.getInt("song");
       print("stored index = " + idx.toString());
-      if (idx != null && _songs[idx] != null) {
+      if (idx != null && _songs.length > idx) {
         _current = _songs[idx];
         duration = new Duration(milliseconds: _current.duration);
         position = new Duration(milliseconds: prefs.getInt("position"));
+      }else{
+        duration = new Duration(seconds: 0);
+        position = new Duration(seconds: 0);
       }
       checkedList = new List<bool>();
     });
@@ -218,22 +223,23 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     print('updated $rowsAffected row(s)');
   }
 
-  void _delete() async {
+  void _delete(Song s) async {
     // Assuming that the number of rows is the id for the last row.
     int rowsDeleted;
-    //Todo: Have trouble with deleting last song. Add Toast after deletion
-    for(Song s in _deleteList){
+    print("list length = " + _deleteList.length.toString());
+      print("to be deleted: " + s.title);
       rowsDeleted = await dbHelper.delete(s.id);
       setState(() {
-        _songs.remove(s);
-        if(!_songs.contains(_current)){
+        if(_songs.contains(_current)){
+          stop();
           _current = new Song(
-              0, "  ", "  ", "  ", 0, 0, "  ", "  ");
+              0, " ", " ", " ", 0, 0, " ", " ");
           duration = new Duration(seconds: 0);
           position = new Duration(seconds: 0);
         }
+        _songs.remove(s);
       });
-    }
+      print("rows deleted : " + rowsDeleted.toString());
     print('deleted $rowsDeleted row(s)');
   }
 
@@ -373,7 +379,12 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
               RaisedButton(
                 child: Text("Yes", style: TextStyle(color: Colors.white),),
                 onPressed: () {
-                  _delete();
+                  for(Song s in _deleteList) {
+                    _delete(s);
+                  }
+                  key.currentState.showSnackBar(
+                      new SnackBar(
+                          content: (_deleteList.length == 1) ? new Text("1 item is deleted!"): new Text(_deleteList.length.toString() + " items are deleted!")));
                   Navigator.of(context).pop();
                   quitDeleteMode();
                   },
@@ -437,7 +448,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     }
 
     print("if in delete mode : " + _deleteMode.toString());
-    print(checkedList[0].toString());
     Widget _buildSongList() {
       return ListView.builder(
         itemCount: _songs.length,
@@ -486,6 +496,8 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
         },
       );
     }
+
+    String songArtist = (_current.title == " ") ? "" : _current.artist + " - " + _current.title;
 
     final listView = Container(
         child: new Stack(
@@ -558,7 +570,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
                           children: <Widget>[
                             Expanded(
                                 child: Text(
-                                  _current.artist + "  -  " + _current.title,
+                                  songArtist,
                                   maxLines: 1,
                                 )),
                             InkWell(
@@ -607,23 +619,20 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
                     icon: Icon(
                       Icons.search,
                     ),
-                    onPressed: () => print("Search is tapped"),
+                    onPressed: !_deleteMode ? ()=> print("Search is tapped") : null,
                     splashColor: Colors.red,
                   ),
                   IconButton(
                     icon: Icon(
                       Icons.sort,
                     ),
-                    onPressed: () => print("Sort is tapped"),
+                    onPressed: !_deleteMode ? ()=> print("Sort is tapped") : null,
                   ),
                   IconButton(
                     icon: Icon(
                       Icons.refresh,
                     ),
-                    onPressed: () {
-                      print("Refresh is tapped");
-                      loadSongs();
-                    },
+                    onPressed: !_deleteMode ? ()=> loadSongs() : null,
                   ),
                 ],
               ),
@@ -639,6 +648,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     );
 
     return Scaffold(
+      key: key,
       backgroundColor: Colors.white,
       appBar: myAppBar,
       body: listView,
