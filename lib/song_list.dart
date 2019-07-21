@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'databaseHelper.dart';
 import 'dialog.dart';
+import 'songInfo.dart';
 
 double _value = 0;
 enum PlayerState { stopped, playing, paused }
@@ -366,11 +367,10 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10.0),
             ),
-            title: Center(child: Text("Remove Following Songs?", style: TextStyle(fontSize: 16.0),)),
+            title: Center(child: Text("Remove Following Songs?", style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold),)),
             content: Container(
-              height: 200.0,
-              child: buildDeleteList(),
-            ),
+                height: 200.0,
+                child: buildDeleteList()),
             actions: <Widget>[
               FlatButton(
                 child: Text("No"),
@@ -411,6 +411,26 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     });
   }
 
+  void _edit(int index) async {
+    Navigator.pop(context);
+    SharedPreferences prefs =
+          await SharedPreferences.getInstance();
+      final update =
+          await Dialogs.saveCancelDialog(context, _songs[index]);
+      if (update == DialogOptions.Save) {
+        setState(() {
+          _songs[index].title = prefs.getString("songTitle");
+          _songs[index].artist =
+              prefs.getString("songArtist");
+          _songs[index].album = prefs.getString("songAlbum");
+          _update(_songs[index]);
+          key.currentState.showSnackBar(
+              new SnackBar(
+                  content: (Text("Changes are Saved!"))));
+        });
+      }
+    }
+
   //Todo: Make selected song bigger
   @override
   Widget build(BuildContext context) {
@@ -428,20 +448,42 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
       }else{
         return IconButton(
           icon: new Icon(Icons.more_vert),
-          onPressed: () async {
-              SharedPreferences prefs =
-              await SharedPreferences.getInstance();
-              final update =
-              await Dialogs.saveCancelDialog(context, _songs[index]);
-              if (update == DialogOptions.Save) {
-                setState(() {
-                  _songs[index].title = prefs.getString("songTitle");
-                  _songs[index].artist =
-                      prefs.getString("songArtist");
-                  _songs[index].album = prefs.getString("songAlbum");
-                  _update(_songs[index]);
+          onPressed: () {
+            showModalBottomSheet(context: context,
+                builder: (BuildContext context){
+                  return new Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        ListTile(
+                          title: Center(
+                            child: Text(
+                                _songs[index].artist + " - " + _songs[index].title,
+                            maxLines: 1,),
+                          ),
+                        ),
+                        Divider(
+                          height: 1.0,
+                          color: Colors.grey[500],
+                        ),
+                        ListTile(
+                          leading: Icon(Icons.edit),
+                          title: Text("Edit"),
+                          dense: true,
+                          onTap: () => _edit(index),
+                        ),
+                        Divider(
+                          height: 1.0,
+                          color: Colors.grey[500],
+                        ),
+                        ListTile(
+                          leading: Icon(Icons.info_outline),
+                          dense: true,
+                          title: Text("Info"),
+                          onTap: () => SongInfo.showSongInfo(context, _songs[index]),
+                        ),
+                      ],
+                    );
                 });
-              }
           },
         );
       }

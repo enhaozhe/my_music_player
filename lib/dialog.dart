@@ -32,12 +32,13 @@ class Dialogs {
                 content: Container(
                   height: 220.0,
                   child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text("Song Title"),
+                          Text("Song Title", style: TextStyle(fontWeight: FontWeight.bold),),
                           titleText,
-                          Text("Artist"),
+                          Text("Artist", style: TextStyle(fontWeight: FontWeight.bold)),
                           artistText,
-                          Text("Album"),
+                          Text("Album", style: TextStyle(fontWeight: FontWeight.bold)),
                           albumText
                         ],
                       ),
