@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'databaseHelper.dart';
 import 'dialog.dart';
 import 'songInfo.dart';
+import 'loadSongsRoute.dart';
 
 double _value = 0;
 enum PlayerState { stopped, playing, paused }
@@ -89,42 +90,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     WidgetsBinding.instance.addObserver(this);
   }
 
-  _insert(Song s) async {
-    // get a reference to the database
-    // because this is an expensive operation we use async and await
-    Database db = await DatabaseHelper.instance.database;
-    //if record already existed, return.
-    int sID = s.id;
-    var queryResult =
-    await db.rawQuery('SELECT * FROM songs_table WHERE id=' + '$sID');
-    if (queryResult != null && queryResult.length != 0) {
-      print("record existed");
-      return;
-    }
-    // row to insert
-    Map<String, dynamic> row = {
-      DatabaseHelper.columnId: s.id,
-      DatabaseHelper.columnTitle: s.title,
-      DatabaseHelper.columnArtist: s.artist,
-      DatabaseHelper.columnAlbum: s.album,
-      DatabaseHelper.columnUrl: s.uri,
-      DatabaseHelper.columnAlbumArt: s.albumArt,
-      DatabaseHelper.columnDuration: s.duration,
-      DatabaseHelper.columnAlbumid: s.albumId
-    };
-
-    // do the insert and get the id of the inserted row
-    int id = await db.insert(DatabaseHelper.table, row);
-    //update song list.
-    setState(() {
-      _songs.add(s);
-    });
-    print("inserted : ");
-    print(id);
-    // show the results: print all rows in the db
-    print(await db.query(DatabaseHelper.table));
-  }
-
   void initPlayerHandler() {
     audioPlayer.setDurationHandler((d) =>
         setState(() {
@@ -160,7 +125,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     print("list size = " + list.length.toString());
     setState(() {
       for (int i = 0; i < list.length; i++) {
-        _songs.add(list[i]);
+          _songs.add(list[i]);
         print("songList added : " + _songs[i].uri);
       }
       print("songsList size = " + _songs.length.toString());
@@ -200,12 +165,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setInt("song", _songs.indexOf(_current));
     prefs.setInt("position", position.inMilliseconds);
-  }
-
-  void _query() async {
-    final allRows = await dbHelper.queryAllRows();
-    print('query all rows:');
-    allRows.forEach((row) => print(row));
   }
 
   void _update(Song s) async {
@@ -249,9 +208,16 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     var songs;
     songs = await MusicFinder.allSongs();
     songs = new List<Song>.from(songs);
-    for (Song s in songs) {
-      _insert(s);
-    }
+    await Navigator.push(context,
+        new MaterialPageRoute(
+            builder: (BuildContext context) => new LoadSongsRoute(songs)));
+    var res = await dbHelper.queryAllRows();
+    List<Song> list =
+    res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
+    setState(() {
+      _songs.clear();
+      initPlayer();
+    });
   }
 
   onChanged(double value) {
@@ -275,7 +241,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
   playPause(Song s) async {
     print(_playerState);
     print(s.uri);
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+    //SharedPreferences prefs = await SharedPreferences.getInstance();
     //When switch songs
     if (_current != s) {
       setState(() {
@@ -492,6 +458,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     print("if in delete mode : " + _deleteMode.toString());
     Widget _buildSongList() {
       return ListView.builder(
+        shrinkWrap: true,
         itemCount: _songs.length,
         itemBuilder: (BuildContext context, int index) {
           return new Column(
@@ -545,7 +512,15 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
         child: new Stack(
           alignment: Alignment.bottomCenter,
           children: <Widget>[
-            _buildSongList(),
+            Column(
+              children: <Widget>[
+                _buildSongList(),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(_songs.length.toString() + " Songs", style: TextStyle(color: Colors.grey),),
+                ),
+              ],
+            ),
             Container(
               height: 60.0,
               color: Colors.blue[100],
@@ -674,6 +649,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
                     icon: Icon(
                       Icons.refresh,
                     ),
+                    //Todo: shows a list of songs for users to choose.
                     onPressed: !_deleteMode ? ()=> loadSongs() : null,
                   ),
                 ],
