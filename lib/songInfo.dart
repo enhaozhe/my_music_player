@@ -17,28 +17,28 @@ class SongInfo{
                   Flexible(child: Text(song.title))
                 ],
               ),
-            Divider(height: 2.0, color: Colors.grey[500],),
+            Divider(height: 2.0, color: Colors.grey,),
             Row(
               children: <Widget>[
                 Text("Artist : ", style: TextStyle(fontWeight:FontWeight.bold),),
                 Flexible(child: Text(song.artist))
               ],
             ),
-            Divider(height: 2.0, color: Colors.grey[500],),
+            Divider(height: 2.0, color: Colors.grey,),
             Row(
               children: <Widget>[
                 Text("Album : ", style: TextStyle(fontWeight:FontWeight.bold),),
                 Flexible(child: Text(song.album),)
               ],
             ),
-            Divider(height: 2.0, color: Colors.grey[500],),
+            Divider(height: 2.0, color: Colors.grey,),
             Row(
               children: <Widget>[
                 Text("Location : ", style: TextStyle(fontWeight:FontWeight.bold), ),
                 Flexible(child: Text(song.uri),)
               ],
             ),
-            Divider(height: 2.0, color: Colors.grey[500],),
+            Divider(height: 2.0, color: Colors.grey,),
             Row(
               children: <Widget>[
                 Text("Duration : " , style: TextStyle(fontWeight:FontWeight.bold), ),

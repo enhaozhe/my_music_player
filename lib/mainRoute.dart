@@ -18,18 +18,10 @@ class SongList extends StatefulWidget {
   _SongListState createState() => _SongListState();
 }
 
-class _SongListState extends State<SongList> with WidgetsBindingObserver{
+class _SongListState extends State<SongList> with WidgetsBindingObserver {
   final dbHelper = DatabaseHelper.instance;
   List<Song> _songs;
-  Song _current = new Song(
-      0,
-      " ",
-      " ",
-      " ",
-      0,
-      0,
-      " ",
-      " ");
+  Song _current = new Song(0, " ", " ", " ", 0, 0, " ", " ");
 
   MusicFinder audioPlayer;
   Duration duration;
@@ -91,13 +83,11 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
   }
 
   void initPlayerHandler() {
-    audioPlayer.setDurationHandler((d) =>
-        setState(() {
+    audioPlayer.setDurationHandler((d) => setState(() {
           duration = d;
         }));
 
-    audioPlayer.setPositionHandler((p) =>
-        setState(() {
+    audioPlayer.setPositionHandler((p) => setState(() {
           position = p;
         }));
 
@@ -121,11 +111,11 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     SharedPreferences prefs = await SharedPreferences.getInstance();
     var res = await dbHelper.queryAllRows();
     List<Song> list =
-    res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
+        res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
     print("list size = " + list.length.toString());
     setState(() {
       for (int i = 0; i < list.length; i++) {
-          _songs.add(list[i]);
+        _songs.add(list[i]);
         print("songList added : " + _songs[i].uri);
       }
       print("songsList size = " + _songs.length.toString());
@@ -135,7 +125,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
         _current = _songs[idx];
         duration = new Duration(milliseconds: _current.duration);
         position = new Duration(milliseconds: prefs.getInt("position"));
-      }else{
+      } else {
         duration = new Duration(seconds: 0);
         position = new Duration(seconds: 0);
       }
@@ -154,14 +144,15 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
   //Store data before killing the app.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if(state == AppLifecycleState.inactive || state == AppLifecycleState.paused){
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
       print("suspended");
       storeSharedData();
     }
     print(state.toString());
   }
 
-  void storeSharedData() async{
+  void storeSharedData() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setInt("song", _songs.indexOf(_current));
     prefs.setInt("position", position.inMilliseconds);
@@ -187,19 +178,18 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     // Assuming that the number of rows is the id for the last row.
     int rowsDeleted;
     print("list length = " + _deleteList.length.toString());
-      print("to be deleted: " + s.title);
-      rowsDeleted = await dbHelper.delete(s.id);
-      setState(() {
-        if(_songs.contains(_current)){
-          stop();
-          _current = new Song(
-              0, " ", " ", " ", 0, 0, " ", " ");
-          duration = new Duration(seconds: 0);
-          position = new Duration(seconds: 0);
-        }
-        _songs.remove(s);
-      });
-      print("rows deleted : " + rowsDeleted.toString());
+    print("to be deleted: " + s.title);
+    rowsDeleted = await dbHelper.delete(s.id);
+    setState(() {
+      if (_songs.contains(_current)) {
+        stop();
+        _current = new Song(0, " ", " ", " ", 0, 0, " ", " ");
+        duration = new Duration(seconds: 0);
+        position = new Duration(seconds: 0);
+      }
+      _songs.remove(s);
+    });
+    print("rows deleted : " + rowsDeleted.toString());
     print('deleted $rowsDeleted row(s)');
   }
 
@@ -208,12 +198,13 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     var songs;
     songs = await MusicFinder.allSongs();
     songs = new List<Song>.from(songs);
-    await Navigator.push(context,
+    await Navigator.push(
+        context,
         new MaterialPageRoute(
             builder: (BuildContext context) => new LoadSongsRoute(songs)));
     var res = await dbHelper.queryAllRows();
     List<Song> list =
-    res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
+        res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
     setState(() {
       _songs.clear();
       initPlayer();
@@ -322,38 +313,45 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     });
   }
 
-  void shareOrDelete(){
+  void shareOrDelete() {
     if (_iconShareDelete == Icons.share) {
       print("share is pressed");
     } else {
       showDialog(
         context: context,
-        builder: (BuildContext context){
+        builder: (BuildContext context) {
           return AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10.0),
             ),
-            title: Center(child: Text("Remove Following Songs?", style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold),)),
-            content: Container(
-                height: 200.0,
-                child: buildDeleteList()),
+            title: Center(
+                child: Text(
+              "Remove Following Songs?",
+              style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold),
+            )),
+            content: Container(height: 200.0, child: buildDeleteList()),
             actions: <Widget>[
               FlatButton(
                 child: Text("No"),
                 onPressed: () => Navigator.of(context).pop(),
               ),
               RaisedButton(
-                child: Text("Yes", style: TextStyle(color: Colors.white),),
+                child: Text(
+                  "Yes",
+                  style: TextStyle(color: Colors.white),
+                ),
                 onPressed: () {
-                  for(Song s in _deleteList) {
+                  for (Song s in _deleteList) {
                     _delete(s);
                   }
-                  key.currentState.showSnackBar(
-                      new SnackBar(
-                          content: (_deleteList.length == 1) ? new Text("1 item is deleted!"): new Text(_deleteList.length.toString() + " items are deleted!")));
+                  key.currentState.showSnackBar(new SnackBar(
+                      content: (_deleteList.length == 1)
+                          ? new Text("1 item is deleted!")
+                          : new Text(_deleteList.length.toString() +
+                              " items are deleted!")));
                   Navigator.of(context).pop();
                   quitDeleteMode();
-                  },
+                },
               )
             ],
           );
@@ -363,14 +361,14 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     }
   }
 
-  void checkBoxFunc(int index, bool value){
+  void checkBoxFunc(int index, bool value) {
     setState(() {
       checkedList[index] = value;
-      _deleteCount = value ? _deleteCount+1 : _deleteCount-1;
+      _deleteCount = value ? _deleteCount + 1 : _deleteCount - 1;
       _title = _deleteCount.toString() + " Selected";
-      if(value){
+      if (value) {
         _deleteList.add(_songs[index]);
-      }else{
+      } else {
         _deleteList.remove(_songs[index]);
       }
       print(_deleteList);
@@ -379,29 +377,25 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
 
   void _edit(int index) async {
     Navigator.pop(context);
-    SharedPreferences prefs =
-          await SharedPreferences.getInstance();
-      final update =
-          await Dialogs.saveCancelDialog(context, _songs[index]);
-      if (update == DialogOptions.Save) {
-        setState(() {
-          _songs[index].title = prefs.getString("songTitle");
-          _songs[index].artist =
-              prefs.getString("songArtist");
-          _songs[index].album = prefs.getString("songAlbum");
-          _update(_songs[index]);
-          key.currentState.showSnackBar(
-              new SnackBar(
-                  content: (Text("Changes are Saved!"))));
-        });
-      }
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final update = await Dialogs.saveCancelDialog(context, _songs[index]);
+    if (update == DialogOptions.Save) {
+      setState(() {
+        _songs[index].title = prefs.getString("songTitle");
+        _songs[index].artist = prefs.getString("songArtist");
+        _songs[index].album = prefs.getString("songAlbum");
+        _update(_songs[index]);
+        key.currentState
+            .showSnackBar(new SnackBar(content: (Text("Changes are Saved!"))));
+      });
     }
+  }
 
   //Todo: Make selected song bigger
   @override
   Widget build(BuildContext context) {
-    Widget moreOrDeleteButton(int index){
-      if(_deleteMode){
+    Widget moreOrDeleteButton(int index) {
+      if (_deleteMode) {
         return Checkbox(
           value: checkedList[index],
           onChanged: (bool value) {
@@ -411,44 +405,47 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
             });
           },
         );
-      }else{
+      } else {
         return IconButton(
           icon: new Icon(Icons.more_vert),
           onPressed: () {
-            showModalBottomSheet(context: context,
-                builder: (BuildContext context){
+            showModalBottomSheet(
+                context: context,
+                builder: (BuildContext context) {
                   return new Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        ListTile(
-                          title: Center(
-                            child: Text(
-                                _songs[index].artist + " - " + _songs[index].title,
-                            maxLines: 1,),
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      ListTile(
+                        title: Center(
+                          child: Text(
+                            _songs[index].artist + " - " + _songs[index].title,
+                            maxLines: 1,
                           ),
                         ),
-                        Divider(
-                          height: 1.0,
-                          color: Colors.grey[500],
-                        ),
-                        ListTile(
-                          leading: Icon(Icons.edit),
-                          title: Text("Edit"),
-                          dense: true,
-                          onTap: () => _edit(index),
-                        ),
-                        Divider(
-                          height: 1.0,
-                          color: Colors.grey[500],
-                        ),
-                        ListTile(
-                          leading: Icon(Icons.info_outline),
-                          dense: true,
-                          title: Text("Info"),
-                          onTap: () => SongInfo.showSongInfo(context, _songs[index]),
-                        ),
-                      ],
-                    );
+                      ),
+                      Divider(
+                        height: 1.0,
+                        color: Colors.grey[500],
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.edit),
+                        title: Text("Edit"),
+                        dense: true,
+                        onTap: () => _edit(index),
+                      ),
+                      Divider(
+                        height: 1.0,
+                        color: Colors.grey[500],
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.info_outline),
+                        dense: true,
+                        title: Text("Info"),
+                        onTap: () =>
+                            SongInfo.showSongInfo(context, _songs[index]),
+                      ),
+                    ],
+                  );
                 });
           },
         );
@@ -465,19 +462,18 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
             children: <Widget>[
               GestureDetector(
                 onLongPress: () =>
-                (_deleteMode)
-                    ? quitDeleteMode()
-                    : deleteMode(),
+                    (_deleteMode) ? quitDeleteMode() : deleteMode(),
                 child: new ListTile(
                   //check icon to see if in delete mode.
-                  onTap: () { if(!_deleteMode) {
-                    playPause(_songs[index]);
-                    }else{
-                    setState(() {
-                      checkBoxFunc(index, !checkedList[index]);
-                    });
-                  }
-          },
+                  onTap: () {
+                    if (!_deleteMode) {
+                      playPause(_songs[index]);
+                    } else {
+                      setState(() {
+                        checkBoxFunc(index, !checkedList[index]);
+                      });
+                    }
+                  },
                   leading: GestureDetector(
                     child: new CircleAvatar(
                       backgroundColor: _colors[index % _colors.length],
@@ -506,111 +502,156 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
       );
     }
 
-    String songArtist = (_current.title == " ") ? "" : _current.artist + " - " + _current.title;
+    String songArtist =
+        (_current.title == " ") ? "" : _current.artist + " - " + _current.title;
 
     final listView = Container(
         child: new Stack(
-          alignment: Alignment.bottomCenter,
+      children: <Widget>[
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Column(
+            Expanded(child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 _buildSongList(),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: Text(_songs.length.toString() + " Songs", style: TextStyle(color: Colors.grey),),
+                  child: Text(
+                    _songs.length.toString() + " Songs",
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
               ],
-            ),
-            Container(
-              height: 60.0,
-              color: Colors.blue[100],
-              child: Row(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: CircleAvatar(
-                      backgroundColor: Colors.blue[200],
-                      child: Text(
-                        _current.title[0],
-                        style: TextStyle(color: Colors.black),
-                      ),
+            )),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: <Widget>[
+                InkWell(child: Text("A", style: TextStyle(color: Colors.grey)),
+                  onTap: () => print("A is tapped"),),
+                InkWell(child: Text("B", style: TextStyle(color: Colors.grey)),
+                  onTap: () => print("B is tapped"),),
+                InkWell(child: Text("C", style: TextStyle(color: Colors.grey)),
+                  onTap: () => print("A is tapped"),),
+                Text("D", style: TextStyle(color: Colors.grey)),
+                Text("E", style: TextStyle(color: Colors.grey)),
+                Text("F", style: TextStyle(color: Colors.grey)),
+                Text("G", style: TextStyle(color: Colors.grey)),
+                Text("H", style: TextStyle(color: Colors.grey)),
+                Text("I", style: TextStyle(color: Colors.grey)),
+                Text("J", style: TextStyle(color: Colors.grey)),
+                Text("K", style: TextStyle(color: Colors.grey)),
+                Text("L", style: TextStyle(color: Colors.grey)),
+                Text("M", style: TextStyle(color: Colors.grey)),
+                Text("N", style: TextStyle(color: Colors.grey)),
+                Text("O", style: TextStyle(color: Colors.grey)),
+                Text("P", style: TextStyle(color: Colors.grey)),
+                Text("Q", style: TextStyle(color: Colors.grey)),
+                Text("R", style: TextStyle(color: Colors.grey)),
+                Text("S", style: TextStyle(color: Colors.grey)),
+                Text("T", style: TextStyle(color: Colors.grey)),
+                Text("U", style: TextStyle(color: Colors.grey)),
+                Text("V", style: TextStyle(color: Colors.grey)),
+                Text("W", style: TextStyle(color: Colors.grey)),
+                Text("X", style: TextStyle(color: Colors.grey)),
+                Text("Y", style: TextStyle(color: Colors.grey)),
+                Text("Z", style: TextStyle(color: Colors.grey)),
+              ],
+            )
+          ],
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            height: 60.0,
+            color: Colors.blue[100],
+            child: Row(
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.blue[200],
+                    child: Text(
+                      _current.title[0],
+                      style: TextStyle(color: Colors.black),
                     ),
                   ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Container(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: <Widget>[
-                              Text(
-                                positionText,
-                                style: TextStyle(fontSize: 12.0),
-                              ),
-                              Expanded(
-                                child: SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    activeTrackColor: Colors.red,
-                                    inactiveTrackColor: Colors.black,
-                                    trackHeight: 2.0,
-                                    thumbColor: Colors.yellow,
-                                    showValueIndicator: ShowValueIndicator
-                                        .always,
-                                    thumbShape: RoundSliderThumbShape(
-                                        enabledThumbRadius: 8.0),
-                                    overlayColor: Colors.purple.withAlpha(32),
-                                    overlayShape:
-                                    RoundSliderOverlayShape(overlayRadius: 8.0),
-                                  ),
-                                  child: Slider(
-                                    min: 0.0,
-                                    max: _current.duration.toDouble() + 1000,
-                                    value:
-                                    position?.inMilliseconds?.toDouble() ?? 0,
-                                    onChanged: (double value) =>
-                                        audioPlayer.seek(
-                                          (value / 1000).roundToDouble(),
-                                        ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Container(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            Text(
+                              positionText,
+                              style: TextStyle(fontSize: 12.0),
+                            ),
+                            Expanded(
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  activeTrackColor: Colors.red,
+                                  inactiveTrackColor: Colors.black,
+                                  trackHeight: 2.0,
+                                  thumbColor: Colors.yellow,
+                                  showValueIndicator: ShowValueIndicator.always,
+                                  thumbShape: RoundSliderThumbShape(
+                                      enabledThumbRadius: 8.0),
+                                  overlayColor: Colors.purple.withAlpha(32),
+                                  overlayShape: RoundSliderOverlayShape(
+                                      overlayRadius: 8.0),
+                                ),
+                                child: Slider(
+                                  min: 0.0,
+                                  max: _current.duration.toDouble() + 1000,
+                                  value:
+                                      position?.inMilliseconds?.toDouble() ?? 0,
+                                  onChanged: (double value) => audioPlayer.seek(
+                                    (value / 1000).roundToDouble(),
                                   ),
                                 ),
                               ),
-                              Text(
-                                durationText,
-                                style: TextStyle(fontSize: 12.0),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                                child: Text(
-                                  songArtist,
-                                  maxLines: 1,
-                                )),
-                            InkWell(
-                              child: new Icon(_icon),
-                              onTap: () {
-                                playPause(_current);
-                              },
                             ),
-                            InkWell(
-                              child: Icon(Icons.skip_next),
-                              onTap: () => playNext(),
+                            Text(
+                              durationText,
+                              style: TextStyle(fontSize: 12.0),
                             ),
-                            Icon(Icons.list)
                           ],
                         ),
-                      ],
-                    ),
-                  )
-                ],
-              ),
-            )
-          ],
-        ));
+                      ),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                              child: Text(
+                            songArtist,
+                            maxLines: 1,
+                          )),
+                          InkWell(
+                            child: new Icon(_icon),
+                            onTap: () {
+                              playPause(_current);
+                            },
+                          ),
+                          InkWell(
+                            child: Icon(Icons.skip_next),
+                            onTap: () => playNext(),
+                          ),
+                          Icon(Icons.list)
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              ],
+            ),
+          ),
+        ),
+
+      ],
+    ));
 
     final myAppBar = AppBar(
       title: Text(_title),
@@ -636,21 +677,22 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
                     icon: Icon(
                       Icons.search,
                     ),
-                    onPressed: !_deleteMode ? ()=> print("Search is tapped") : null,
+                    onPressed:
+                        !_deleteMode ? () => print("Search is tapped") : null,
                     splashColor: Colors.red,
                   ),
                   IconButton(
                     icon: Icon(
                       Icons.sort,
                     ),
-                    onPressed: !_deleteMode ? ()=> print("Sort is tapped") : null,
+                    onPressed:
+                        !_deleteMode ? () => print("Sort is tapped") : null,
                   ),
                   IconButton(
                     icon: Icon(
                       Icons.refresh,
                     ),
-                    //Todo: shows a list of songs for users to choose.
-                    onPressed: !_deleteMode ? ()=> loadSongs() : null,
+                    onPressed: !_deleteMode ? () => loadSongs() : null,
                   ),
                 ],
               ),
@@ -673,16 +715,19 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver{
     );
   }
 
-  Widget buildDeleteList(){
+  Widget buildDeleteList() {
     return ListView.builder(
         itemCount: _deleteCount,
-        itemBuilder: (BuildContext context, int index){
+        itemBuilder: (BuildContext context, int index) {
           return Column(
             children: <Widget>[
               Text(_deleteList[index].title),
-              Divider(height: 1.0, color: Colors.grey[500],)
+              Divider(
+                height: 1.0,
+                color: Colors.grey[500],
+              )
             ],
           );
-    });
+        });
   }
 }
