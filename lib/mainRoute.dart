@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flute_music_player/flute_music_player.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'databaseHelper.dart';
@@ -202,9 +201,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         context,
         new MaterialPageRoute(
             builder: (BuildContext context) => new LoadSongsRoute(songs)));
-    var res = await dbHelper.queryAllRows();
-    List<Song> list =
-        res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
     setState(() {
       _songs.clear();
       initPlayer();

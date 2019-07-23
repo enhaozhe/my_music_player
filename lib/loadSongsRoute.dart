@@ -3,10 +3,9 @@ import 'package:flute_music_player/flute_music_player.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'databaseHelper.dart';
-import 'mainRoute.dart';
 
 class LoadSongsRoute extends StatefulWidget {
-  List<Song> list;
+  final List<Song> list;
 
   LoadSongsRoute(this.list);
 
