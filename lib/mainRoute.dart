@@ -6,6 +6,7 @@ import 'databaseHelper.dart';
 import 'dialog.dart';
 import 'songInfo.dart';
 import 'loadSongsRoute.dart';
+import 'dragBar.dart';
 
 double _value = 0;
 enum PlayerState { stopped, playing, paused }
@@ -35,6 +36,8 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
   List<Song> _deleteList;
   bool _deleteMode = false;
   List<bool> checkedList;
+  
+  ScrollController _scrollController;
 
   final key = new GlobalKey<ScaffoldState>();
 
@@ -78,6 +81,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
     audioPlayer = new MusicFinder();
     initPlayerHandler();
     initPlayer();
+    _scrollController = new ScrollController();
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -117,6 +121,15 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         _songs.add(list[i]);
         print("songList added : " + _songs[i].uri);
       }
+
+      //TODO: Don't clear list every time update list.
+      _songs.sort((a, b ) {
+        if(a.artist.compareTo(b.artist) == 0){
+          return a.title.compareTo(b.title);
+        }else{
+          return a.artist.compareTo(b.artist);
+        }});
+
       print("songsList size = " + _songs.length.toString());
       int idx = prefs.getInt("song");
       print("stored index = " + idx.toString());
@@ -201,6 +214,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         context,
         new MaterialPageRoute(
             builder: (BuildContext context) => new LoadSongsRoute(songs)));
+    var res = await dbHelper.queryAllRows();
     setState(() {
       _songs.clear();
       initPlayer();
@@ -381,6 +395,8 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         _songs[index].artist = prefs.getString("songArtist");
         _songs[index].album = prefs.getString("songAlbum");
         _update(_songs[index]);
+        _songs.clear();
+        initPlayer();
         key.currentState
             .showSnackBar(new SnackBar(content: (Text("Changes are Saved!"))));
       });
@@ -451,9 +467,18 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
     print("if in delete mode : " + _deleteMode.toString());
     Widget _buildSongList() {
       return ListView.builder(
+        controller: _scrollController,
         shrinkWrap: true,
         itemCount: _songs.length,
         itemBuilder: (BuildContext context, int index) {
+          if(index == _songs.length-1){
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: new Center(
+                child: Text(_songs.length.toString() + " Songs",
+                  style: TextStyle(color: Colors.grey),),),
+            );
+          }else{
           return new Column(
             children: <Widget>[
               GestureDetector(
@@ -493,7 +518,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
                 color: Colors.grey[500],
               )
             ],
-          );
+          );}
         },
       );
     }
@@ -502,59 +527,55 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         (_current.title == " ") ? "" : _current.artist + " - " + _current.title;
 
     final listView = Container(
-        child: new Stack(
+        child: new Column(
       children: <Widget>[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Expanded(child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                _buildSongList(),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    _songs.length.toString() + " Songs",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              ],
-            )),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: <Widget>[
-                InkWell(child: Text("A", style: TextStyle(color: Colors.grey)),
-                  onTap: () => print("A is tapped"),),
-                InkWell(child: Text("B", style: TextStyle(color: Colors.grey)),
-                  onTap: () => print("B is tapped"),),
-                InkWell(child: Text("C", style: TextStyle(color: Colors.grey)),
-                  onTap: () => print("A is tapped"),),
-                Text("D", style: TextStyle(color: Colors.grey)),
-                Text("E", style: TextStyle(color: Colors.grey)),
-                Text("F", style: TextStyle(color: Colors.grey)),
-                Text("G", style: TextStyle(color: Colors.grey)),
-                Text("H", style: TextStyle(color: Colors.grey)),
-                Text("I", style: TextStyle(color: Colors.grey)),
-                Text("J", style: TextStyle(color: Colors.grey)),
-                Text("K", style: TextStyle(color: Colors.grey)),
-                Text("L", style: TextStyle(color: Colors.grey)),
-                Text("M", style: TextStyle(color: Colors.grey)),
-                Text("N", style: TextStyle(color: Colors.grey)),
-                Text("O", style: TextStyle(color: Colors.grey)),
-                Text("P", style: TextStyle(color: Colors.grey)),
-                Text("Q", style: TextStyle(color: Colors.grey)),
-                Text("R", style: TextStyle(color: Colors.grey)),
-                Text("S", style: TextStyle(color: Colors.grey)),
-                Text("T", style: TextStyle(color: Colors.grey)),
-                Text("U", style: TextStyle(color: Colors.grey)),
-                Text("V", style: TextStyle(color: Colors.grey)),
-                Text("W", style: TextStyle(color: Colors.grey)),
-                Text("X", style: TextStyle(color: Colors.grey)),
-                Text("Y", style: TextStyle(color: Colors.grey)),
-                Text("Z", style: TextStyle(color: Colors.grey)),
-              ],
-            )
-          ],
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Expanded(child: _buildSongList()),
+                ],
+              )),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: <Widget>[
+                  //TODO: Add function to this scroll bar.
+                  InkWell(child: Text("A", style: TextStyle(color: Colors.grey)),
+                    onTap: () => _scrollController.animateTo(0, duration: new Duration(seconds: 1), curve: Curves.ease),),
+                  InkWell(child: Text("B", style: TextStyle(color: Colors.grey)),
+                    onTap: () => print("B is tapped"),),
+                  InkWell(child: Text("C", style: TextStyle(color: Colors.grey)),
+                    onTap: () => print("A is tapped"),),
+                  Text("D", style: TextStyle(color: Colors.grey)),
+                  Text("E", style: TextStyle(color: Colors.grey)),
+                  Text("F", style: TextStyle(color: Colors.grey)),
+                  Text("G", style: TextStyle(color: Colors.grey)),
+                  Text("H", style: TextStyle(color: Colors.grey)),
+                  Text("I", style: TextStyle(color: Colors.grey)),
+                  Text("J", style: TextStyle(color: Colors.grey)),
+                  Text("K", style: TextStyle(color: Colors.grey)),
+                  Text("L", style: TextStyle(color: Colors.grey)),
+                  Text("M", style: TextStyle(color: Colors.grey)),
+                  Text("N", style: TextStyle(color: Colors.grey)),
+                  Text("O", style: TextStyle(color: Colors.grey)),
+                  Text("P", style: TextStyle(color: Colors.grey)),
+                  Text("Q", style: TextStyle(color: Colors.grey)),
+                  Text("R", style: TextStyle(color: Colors.grey)),
+                  Text("S", style: TextStyle(color: Colors.grey)),
+                  Text("T", style: TextStyle(color: Colors.grey)),
+                  Text("U", style: TextStyle(color: Colors.grey)),
+                  Text("V", style: TextStyle(color: Colors.grey)),
+                  Text("W", style: TextStyle(color: Colors.grey)),
+                  Text("X", style: TextStyle(color: Colors.grey)),
+                  Text("Y", style: TextStyle(color: Colors.grey)),
+                  Text("Z", style: TextStyle(color: Colors.grey)),
+                ],
+              )
+            ],
+          ),
         ),
         Align(
           alignment: Alignment.bottomCenter,
@@ -602,9 +623,8 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
                                 ),
                                 child: Slider(
                                   min: 0.0,
-                                  max: _current.duration.toDouble() + 1000,
-                                  value:
-                                      position?.inMilliseconds?.toDouble() ?? 0,
+                                  max: _current.duration.toDouble() + 2000,
+                                  value: position?.inMilliseconds?.toDouble() ?? 0,
                                   onChanged: (double value) => audioPlayer.seek(
                                     (value / 1000).roundToDouble(),
                                   ),

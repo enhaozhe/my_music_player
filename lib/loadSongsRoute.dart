@@ -135,10 +135,16 @@ class _LoadSongsRoute extends State<LoadSongsRoute> {
           Expanded(
               child: Column(
             children: <Widget>[
-              buildBody(),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(selected.toString() + " selected", style: TextStyle(color: Colors.grey),),
+              Expanded(child: buildBody()),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Center(child: Text(selected.toString() + " selected", style: TextStyle(color: Colors.grey),)),
+                    ),
+                  ),
+                ],
               ),
             ],
           )),
