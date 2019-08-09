@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flute_music_player/flute_music_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math';
 
 import 'databaseHelper.dart';
 import 'dialog.dart';
 import 'songInfo.dart';
 import 'loadSongsRoute.dart';
+import 'playlistDatabase.dart';
+import 'playlistItem.dart';
 import 'dragBar.dart';
 
 double _value = 0;
+const double _item_height = 50.0;
 enum PlayerState { stopped, playing, paused }
 
 class SongList extends StatefulWidget {
@@ -18,9 +22,12 @@ class SongList extends StatefulWidget {
   _SongListState createState() => _SongListState();
 }
 
+//Todo: Add database for playlist
 class _SongListState extends State<SongList> with WidgetsBindingObserver {
   final dbHelper = DatabaseHelper.instance;
-  List<Song> _songs;
+  final playlistDb = PlaylistDatabase.instance;
+  List<Song> _songs = new List<Song>();
+  List<PlaylistItem> _playlist = new List<PlaylistItem>();
   Song _current = new Song(0, " ", " ", " ", 0, 0, " ", " ");
 
   MusicFinder audioPlayer;
@@ -31,24 +38,18 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
   IconData _icon = Icons.play_circle_outline;
   IconData _iconMenuBack = Icons.menu;
   IconData _iconShareDelete = Icons.share;
+  IconData _playMode;
   String _title = "My Music Player";
   int _deleteCount = 0;
   List<Song> _deleteList;
   bool _deleteMode = false;
   List<bool> checkedList;
-  
+  int _playModeValue;
+  int _currentInPlaylist;
   ScrollController _scrollController;
+  ScrollController _playlistScrollController = new ScrollController();
 
   final key = new GlobalKey<ScaffoldState>();
-
-  static const List<Color> _colors = [
-    Colors.red,
-    Colors.blue,
-    Colors.amber,
-    Colors.deepOrangeAccent,
-    Colors.deepPurple,
-    Colors.green
-  ];
 
   get durationText {
     if (duration == null) {
@@ -77,7 +78,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _songs = new List<Song>();
     audioPlayer = new MusicFinder();
     initPlayerHandler();
     initPlayer();
@@ -110,30 +110,111 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
     });
   }
 
+  Map<String, dynamic> getRow(Song s ){
+    Map<String, dynamic> row = {
+      DatabaseHelper.columnId: s.id,
+      DatabaseHelper.columnTitle: s.title,
+      DatabaseHelper.columnArtist: s.artist,
+      DatabaseHelper.columnAlbum: s.album,
+      DatabaseHelper.columnUrl: s.uri,
+      DatabaseHelper.columnAlbumArt: s.albumArt,
+      DatabaseHelper.columnDuration: s.duration,
+      DatabaseHelper.columnAlbumid: s.albumId
+    };
+    return row;
+  }
+
+  Map<String, dynamic> getPlaylistRow(Song s, bool flag){
+    int isAdded = flag ? 1:2;
+    Map<String, dynamic> row = {
+      PlaylistDatabase.columnId: s.id,
+      PlaylistDatabase.columnTitle: s.title,
+      PlaylistDatabase.columnArtist: s.artist,
+      PlaylistDatabase.columnAlbum: s.album,
+      PlaylistDatabase.columnUrl: s.uri,
+      PlaylistDatabase.columnAlbumArt: s.albumArt,
+      PlaylistDatabase.columnDuration: s.duration,
+      PlaylistDatabase.columnAlbumid: s.albumId,
+      PlaylistDatabase.columnIsAdded: isAdded
+    };
+    return row;
+  }
+
   void initPlayer() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
+    //Song list.
     var res = await dbHelper.queryAllRows();
     List<Song> list =
         res.isNotEmpty ? res.map((c) => Song.fromMap(c)).toList() : [];
     print("list size = " + list.length.toString());
+    //Playlist
+    var playlistCount = await playlistDb.queryRowCount();
+    var playlistRes = await playlistDb.queryAllRows();
+    print("Playlist DB Record number: " + playlistCount.toString());
+    List<PlaylistItem> playlist = playlistRes.isNotEmpty
+        ? playlistRes.map((c) => PlaylistItem.fromMap(c)).toList()
+        : [];
     setState(() {
+      //retrieve play mode
+      int savedPlayMode = prefs.getInt("play mode");
+      switch(savedPlayMode){
+        case 2:
+          _playMode = Icons.shuffle;
+          _playModeValue = 2;
+          break;
+        case 3:
+          _playMode = Icons.repeat_one;
+          _playModeValue = 3;
+          break;
+        default:
+          _playMode = Icons.sort;
+          _playModeValue = 1;
+          break;
+      }
+      print("Play mode is : " + _playModeValue.toString());
+
+      _playlistScrollController.addListener((){
+        //Scroll to the current song.
+        for(int i = 0; i < _playlist.length; i++) {
+          if(_playlist[i].song == _current) {
+            _playlistScrollController.animateTo(i * _item_height, duration: new Duration(seconds: 2), curve: Curves.ease);
+          }
+        }
+      });
+
       for (int i = 0; i < list.length; i++) {
         _songs.add(list[i]);
         print("songList added : " + _songs[i].uri);
       }
 
       //TODO: Don't clear list every time update list.
-      _songs.sort((a, b ) {
-        if(a.artist.compareTo(b.artist) == 0){
+      _songs.sort((a, b) {
+        if (a.artist.compareTo(b.artist) == 0) {
           return a.title.compareTo(b.title);
-        }else{
+        } else {
           return a.artist.compareTo(b.artist);
-        }});
+        }
+      });
+      //Todo: play list isn't in order, check database. insert doesn't function correctly
+      //if the database is empty, copy song list.
+      if (playlistCount == 0) {
+        for (int i = 0; i < list.length; i++) {
+          _playlist.add(new PlaylistItem(_songs[i], false));
+          playlistDb.insert(getPlaylistRow(_songs[i], false));
+          print("songList added : " + _playlist[i].song.uri);
+        }
+      } else {
+        //read from database otherwise.
+        for (int i = 0; i < playlist.length; i++) {
+          _playlist.add(playlist[i]);
+          print("playList added : " + _playlist[i].song.id.toString() + " is added :" +_playlist[i].isAdded.toString());
+        }
+      }
 
       print("songsList size = " + _songs.length.toString());
       int idx = prefs.getInt("song");
       print("stored index = " + idx.toString());
-      if (idx != null && _songs.length > idx) {
+      if ((idx != null && idx >= 0) && _songs.length > idx) {
         _current = _songs[idx];
         duration = new Duration(milliseconds: _current.duration);
         position = new Duration(milliseconds: prefs.getInt("position"));
@@ -142,8 +223,15 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         position = new Duration(seconds: 0);
       }
       checkedList = new List<bool>();
+
     });
-    print(await dbHelper.queryAllRows());
+    //Todo: update _currentInPlaylist when play another song
+    for(int i = 0 ; i < _playlist.length; i++){
+      if(_playlist[i].song.id == _current.id){
+        _currentInPlaylist = i;
+      }
+      //print(s.song.id.toString() + " : " + _current.id.toString());
+    }
   }
 
   @override
@@ -168,21 +256,13 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setInt("song", _songs.indexOf(_current));
     prefs.setInt("position", position.inMilliseconds);
+    prefs.setInt("play mode", _playModeValue);
+
   }
 
   void _update(Song s) async {
     // row to update
-    Map<String, dynamic> row = {
-      DatabaseHelper.columnId: s.id,
-      DatabaseHelper.columnTitle: s.title,
-      DatabaseHelper.columnArtist: s.artist,
-      DatabaseHelper.columnAlbum: s.album,
-      DatabaseHelper.columnUrl: s.uri,
-      DatabaseHelper.columnAlbumArt: s.albumArt,
-      DatabaseHelper.columnDuration: s.duration,
-      DatabaseHelper.columnAlbumid: s.albumId
-    };
-    final rowsAffected = await dbHelper.update(row);
+    final rowsAffected = await dbHelper.update(getRow(s));
     print('updated $rowsAffected row(s)');
   }
 
@@ -230,7 +310,13 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
 
   void onComplete() {
     setState(() => _playerState = PlayerState.stopped);
-    playNext();
+    if(_playMode == Icons.repeat_one) {
+      playNext(3);
+    }else if(_playMode == Icons.shuffle){
+      playNext(2);
+    }else{
+      playNext(1);
+    }
   }
 
   // add a isLocal parameter to play a local file
@@ -285,12 +371,25 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
       });
     }
   }
-
-  playNext() {
-    print("next");
+  //Todo: save playlist to database when state changes. Check play mode when click Play next
+  playNext(int mode) {
+    print("play next");
     int n = _songs.indexOf(_current);
     print(n);
-    Song next = _songs[(n + 1) % _songs.length];
+    Song next;
+    switch(mode){
+      case 1:  //in order mode
+        next = _playlist[(n + 1) % _playlist.length].song;
+        break;
+      case 2:  //shuffle mode
+        var rng = new Random();
+        int rn = rng.nextInt(_playlist.length-1);
+        print("generated : " + rn.toString());
+        next = _playlist[rn].song;
+        break;
+      case 3:  //cycle mode
+        next = _current;
+    }
     setState(() {
       _current = next;
       _icon = Icons.pause_circle_outline;
@@ -403,7 +502,87 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
     }
   }
 
-  //Todo: Make selected song bigger
+  //Playlist UI
+  void buildPlaylist() {
+    showModalBottomSheet(
+        context: context,
+        builder: (BuildContext context) {
+          return new Column(
+            children: <Widget>[
+              Column(
+                children: <Widget>[
+                  ListTile(
+                    title: Text("play mode"),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: Colors.grey[500],
+                  )
+                ],
+              ),
+              Flexible(
+                child: ListView.builder(
+                    shrinkWrap: true,
+                    controller: _playlistScrollController,
+                    itemCount: _playlist.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      return Card(
+                        key: UniqueKey(),
+                        child: Container(
+                          height: _item_height,
+                          padding: EdgeInsets.all(0),
+                          decoration: BoxDecoration(
+                            color: _playlist[index].isAdded ? Colors.blue : null
+                          ),
+                          child: ListTile(
+                            selected: index == _currentInPlaylist,
+                            contentPadding: EdgeInsets.all(0),
+                            dense: true,
+                            leading: Padding(
+                              padding: const EdgeInsets.fromLTRB(25, 0, 0, 0),
+                              child: Text(
+                                (index + 1).toString(),
+                                style: TextStyle(
+                                    color: index == _currentInPlaylist
+                                        ? Colors.blue
+                                        : Colors.black),
+                              ),
+                            ),
+                            title: Text(
+                              _playlist[index].song.title,
+                              maxLines: 1,
+                            ),
+                            trailing: IconButton(
+                                icon: Icon(Icons.delete),
+                                onPressed: () {
+                                  setState(() {
+                                    print(_playlist[index].song.title + " is removed");
+                                    _playlist.removeAt(index);
+                                    //Todo: update the list after removal.
+                                  });
+                                }),
+                          ),
+                        ),
+                      );
+                    }),
+              )
+            ],
+          );
+        });
+
+  }
+
+  //Remove all added songs.
+  void resetPlaylist(){
+    setState(() {
+      for(PlaylistItem i in _playlist){
+        if(i.isAdded){
+          _playlist.remove(i);
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget moreOrDeleteButton(int index) {
@@ -419,6 +598,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         );
       } else {
         return IconButton(
+          color: _songs[index] == _current ? Colors.blue : Colors.black,
           icon: new Icon(Icons.more_vert),
           onPressed: () {
             showModalBottomSheet(
@@ -471,20 +651,27 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
         shrinkWrap: true,
         itemCount: _songs.length,
         itemBuilder: (BuildContext context, int index) {
-          if(index == _songs.length-1){
+          if (index == _songs.length - 1) {
             return Padding(
+              key: UniqueKey(),
               padding: const EdgeInsets.all(16.0),
               child: new Center(
-                child: Text(_songs.length.toString() + " Songs",
-                  style: TextStyle(color: Colors.grey),),),
+                child: Text(
+                  _songs.length.toString() + " Songs",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
             );
-          }else{
-          return new Column(
-            children: <Widget>[
-              GestureDetector(
+          } else {
+            return Container(
+              key: UniqueKey(),
+              child: GestureDetector(
                 onLongPress: () =>
                     (_deleteMode) ? quitDeleteMode() : deleteMode(),
                 child: new ListTile(
+                  selected: _songs[index] == _current,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 0),
+                  dense: true,
                   //check icon to see if in delete mode.
                   onTap: () {
                     if (!_deleteMode) {
@@ -495,30 +682,72 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
                       });
                     }
                   },
-                  leading: GestureDetector(
-                    child: new CircleAvatar(
-                      backgroundColor: _colors[index % _colors.length],
-                      child: Text(_songs[index].title.substring(0, 1)),
-                    ),
+                  leading: _deleteMode ? null : IconButton(
+                      icon: Icon(Icons.add_box),
+                      //shift the position of icon so it looks in center
+                      padding: EdgeInsets.fromLTRB(15, 0, 0, 0),
+                      onPressed: () {
+                          print("Current Index : " + _currentInPlaylist.toString());
+                          int idx = _currentInPlaylist+1;
+                          for(int i = idx; i < _playlist.length; i++){
+                            if(_playlist[i].isAdded){
+                              idx++;
+                            }else{
+                              break;
+                            }
+                          }
+                          setState(() {
+                            _playlist.insert(idx,new PlaylistItem(_songs[index], true));
+                          });
+                          print(_songs[index].uri + " is inserted at " + idx.toString());
+                          },),
+                  title: Column(
+                    mainAxisSize: MainAxisSize.max,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    _songs[index].title,
+                                    style: TextStyle(
+                                        fontSize: 17.0,
+                                        color: _songs[index] == _current
+                                            ? Colors.blue
+                                            : Colors.black),
+                                    maxLines: 1,
+                                  ),
+                                  Text(
+                                    _songs[index].artist,
+                                    style: TextStyle(
+                                        fontSize: 13.0,
+                                        color: _songs[index] == _current
+                                            ? Colors.blue
+                                            : Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          moreOrDeleteButton(index),
+                        ],
+                      ),
+                      new Divider(
+                        height: 1.0,
+                        color: Colors.grey[500],
+                      )
+                    ],
                   ),
-                  title: Text(
-                    _songs[index].title,
-                    style: TextStyle(fontSize: 18.0),
-                    maxLines: 1,
-                  ),
-                  subtitle: Text(
-                    _songs[index].artist,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  trailing: moreOrDeleteButton(index),
                 ),
               ),
-              new Divider(
-                height: 1.0,
-                color: Colors.grey[500],
-              )
-            ],
-          );}
+            );
+          }
         },
       );
     }
@@ -533,7 +762,8 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(child: Column(
+              Expanded(
+                  child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Expanded(child: _buildSongList()),
@@ -543,12 +773,19 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: <Widget>[
                   //TODO: Add function to this scroll bar.
-                  InkWell(child: Text("A", style: TextStyle(color: Colors.grey)),
-                    onTap: () => _scrollController.animateTo(0, duration: new Duration(seconds: 1), curve: Curves.ease),),
-                  InkWell(child: Text("B", style: TextStyle(color: Colors.grey)),
-                    onTap: () => print("B is tapped"),),
-                  InkWell(child: Text("C", style: TextStyle(color: Colors.grey)),
-                    onTap: () => print("A is tapped"),),
+                  InkWell(
+                    child: Text("A", style: TextStyle(color: Colors.grey)),
+                    onTap: () => _scrollController.animateTo(0,
+                        duration: new Duration(seconds: 1), curve: Curves.ease),
+                  ),
+                  InkWell(
+                    child: Text("B", style: TextStyle(color: Colors.grey)),
+                    onTap: () => print("B is tapped"),
+                  ),
+                  InkWell(
+                    child: Text("C", style: TextStyle(color: Colors.grey)),
+                    onTap: () => print("A is tapped"),
+                  ),
                   Text("D", style: TextStyle(color: Colors.grey)),
                   Text("E", style: TextStyle(color: Colors.grey)),
                   Text("F", style: TextStyle(color: Colors.grey)),
@@ -573,7 +810,7 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
                   Text("Y", style: TextStyle(color: Colors.grey)),
                   Text("Z", style: TextStyle(color: Colors.grey)),
                 ],
-              )
+              ),
             ],
           ),
         ),
@@ -586,13 +823,61 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
               children: <Widget>[
                 Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.blue[200],
-                    child: Text(
-                      _current.title[0],
-                      style: TextStyle(color: Colors.black),
-                    ),
-                  ),
+                  //Todo: Add functions when select mode.
+                  child: PopupMenuButton(
+                      icon: Icon(_playMode),
+                      itemBuilder: (BuildContext context) => [
+                            PopupMenuItem(
+                              value: 1,
+                              child: ListTile(
+                                selected: _playMode == Icons.sort,
+                                leading: Icon(Icons.sort),
+                                title: Text("In Order"),
+                                onTap: () {
+                                  if(_playMode != Icons.sort) {
+                                    resetPlaylist();
+                                    setState(() {
+                                      _playModeValue = 1;
+                                      _playMode = Icons.sort;
+                                    });
+                                  }
+                                  },
+                              )
+                            ),
+                            PopupMenuItem(
+                              value: 2,
+                              child: ListTile(
+                                selected: _playMode == Icons.shuffle,
+                                leading: Icon(Icons.shuffle),
+                                title: Text("Shuffle"),
+                                onTap: () {
+                                  if(_playMode != Icons.shuffle){
+                                    resetPlaylist();
+                                    setState(() {
+                                      _playModeValue = 2;
+                                      _playMode = Icons.shuffle;
+                                    });
+                                  }
+                                  },
+                              )
+                            ),
+                            PopupMenuItem(
+                              value: 3,
+                                child: ListTile(
+                                  selected: _playMode == Icons.repeat_one,
+                                  leading: Icon(Icons.repeat_one),
+                                  title: Text("Single Cycle"),
+                                  onTap: () {
+                                    if(_playMode != Icons.repeat_one){
+                                      resetPlaylist();
+                                      setState(() {
+                                        _playModeValue = 3;
+                                        _playMode = Icons.repeat_one;
+                                      });
+                                    }
+                                    },
+                                ))
+                          ]),
                 ),
                 Expanded(
                   child: Column(
@@ -624,7 +909,8 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
                                 child: Slider(
                                   min: 0.0,
                                   max: _current.duration.toDouble() + 2000,
-                                  value: position?.inMilliseconds?.toDouble() ?? 0,
+                                  value:
+                                      position?.inMilliseconds?.toDouble() ?? 0,
                                   onChanged: (double value) => audioPlayer.seek(
                                     (value / 1000).roundToDouble(),
                                   ),
@@ -645,17 +931,18 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
                             songArtist,
                             maxLines: 1,
                           )),
-                          InkWell(
-                            child: new Icon(_icon),
-                            onTap: () {
-                              playPause(_current);
-                            },
+                          GestureDetector(
+                            child: Icon(_icon),
+                            onTap: () => playPause(_current),
                           ),
-                          InkWell(
+                          GestureDetector(
                             child: Icon(Icons.skip_next),
-                            onTap: () => playNext(),
+                            onTap: () => playNext(_playModeValue),
                           ),
-                          Icon(Icons.list)
+                          GestureDetector(
+                            child: Icon(Icons.list),
+                            onTap: () => buildPlaylist(),
+                          ),
                         ],
                       ),
                     ],
@@ -665,7 +952,6 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
             ),
           ),
         ),
-
       ],
     ));
 
