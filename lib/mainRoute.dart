@@ -50,6 +50,9 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
   ScrollController _playlistScrollController = new ScrollController();
 
   final key = new GlobalKey<ScaffoldState>();
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey();
+
+  List<Widget> playListWidget = new List<Widget>();
 
   get durationText {
     if (duration == null) {
@@ -502,74 +505,61 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
     }
   }
 
+  //Build list item of Animated List(Playlist)
+  Widget _buildPlayList(int index, Animation animation){
+    return SizeTransition(
+      sizeFactor: animation,
+      child: Card(
+        color: _playlist[index].isAdded ? Colors.blue: null,
+        child: Container(
+          color: _playlist[index].isAdded?Colors.blue:null,
+          child: ListTile(
+            dense: true,
+            selected: index == _currentInPlaylist,
+            leading: Padding(
+              padding: EdgeInsets.fromLTRB(15, 0, 0, 0),
+              child: Text((index + 1).toString(),
+                style: TextStyle(color: index == _currentInPlaylist?Colors.blue:null),),
+            ),
+            title: Text(
+              _playlist[index].song.title,
+              maxLines: 1,
+            ),
+            trailing: IconButton(
+                icon: Icon(Icons.delete),
+                onPressed: () {
+                  setState(() {
+                    _playlist.removeAt(index);
+                    AnimatedListRemovedItemBuilder builder = (context, animation) {
+                      return _buildPlayList(index, animation);
+                    };
+                    // Remove the item visually from the AnimatedList.
+                    _listKey.currentState.removeItem(index, builder);
+                  });
+                }),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
   //Playlist UI
   void buildPlaylist() {
     showModalBottomSheet(
         context: context,
         builder: (BuildContext context) {
-          return new Column(
-            children: <Widget>[
-              Column(
-                children: <Widget>[
-                  ListTile(
-                    title: Text("play mode"),
-                  ),
-                  Divider(
-                    height: 1,
-                    color: Colors.grey[500],
-                  )
-                ],
-              ),
-              Flexible(
-                child: ListView.builder(
-                    shrinkWrap: true,
-                    controller: _playlistScrollController,
-                    itemCount: _playlist.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      return Card(
-                        key: UniqueKey(),
-                        child: Container(
-                          height: _item_height,
-                          padding: EdgeInsets.all(0),
-                          decoration: BoxDecoration(
-                            color: _playlist[index].isAdded ? Colors.blue : null
-                          ),
-                          child: ListTile(
-                            selected: index == _currentInPlaylist,
-                            contentPadding: EdgeInsets.all(0),
-                            dense: true,
-                            leading: Padding(
-                              padding: const EdgeInsets.fromLTRB(25, 0, 0, 0),
-                              child: Text(
-                                (index + 1).toString(),
-                                style: TextStyle(
-                                    color: index == _currentInPlaylist
-                                        ? Colors.blue
-                                        : Colors.black),
-                              ),
-                            ),
-                            title: Text(
-                              _playlist[index].song.title,
-                              maxLines: 1,
-                            ),
-                            trailing: IconButton(
-                                icon: Icon(Icons.delete),
-                                onPressed: () {
-                                  setState(() {
-                                    print(_playlist[index].song.title + " is removed");
-                                    _playlist.removeAt(index);
-                                    //Todo: update the list after removal.
-                                  });
-                                }),
-                          ),
-                        ),
-                      );
-                    }),
-              )
-            ],
+          return new SizedBox(
+            height: _item_height*8,
+            child: AnimatedList(
+                key: _listKey,
+                initialItemCount: _playlist.length,
+                itemBuilder: (context, index, animation){
+                  return _buildPlayList(index, animation);
+            }),
           );
         });
-
   }
 
   //Remove all added songs.
@@ -649,9 +639,9 @@ class _SongListState extends State<SongList> with WidgetsBindingObserver {
       return ListView.builder(
         controller: _scrollController,
         shrinkWrap: true,
-        itemCount: _songs.length,
+        itemCount: _songs.length+1,
         itemBuilder: (BuildContext context, int index) {
-          if (index == _songs.length - 1) {
+          if (index == _songs.length) {
             return Padding(
               key: UniqueKey(),
               padding: const EdgeInsets.all(16.0),
